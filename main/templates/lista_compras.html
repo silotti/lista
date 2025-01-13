@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+
+{% block extra_js %}
+<style>
+    .updated {
+        color: green;
+        font-weight: bold;
+        transition: all 0.3s ease;
+    }
+    .quantity-value {
+        min-width: 30px;
+        text-align: center;
+        display: inline-block;
+    }
+    .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+</style>
+<script>
+function updateQuantity(itemId, delta) {
+    // Desabilitar os botões durante a atualização
+    const buttons = document.querySelectorAll(`button[onclick*="${itemId}"]`);
+    buttons.forEach(btn => btn.disabled = true);
+    
+    const quantityElement = document.querySelector(`.quantity-value[data-item-id="${itemId}"]`);
+    if (!quantityElement) {
+        console.error('Elemento de quantidade não encontrado');
+        return;
+    }
+
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    fetch(`/item/${itemId}/update_quantity/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({ delta: delta })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            quantityElement.textContent = data.nova_quantidade;
+            quantityElement.classList.add('updated');
+            setTimeout(() => quantityElement.classList.remove('updated'), 500);
+        } else {
+            throw new Error(data.error || 'Erro ao atualizar quantidade');
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert(error.message);
+    })
+    .finally(() => {
+        // Reabilitar os botões após a conclusão
+        buttons.forEach(btn => btn.disabled = false);
+    });
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Quantidade</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in itens %}
+                <tr class="{% if item.comprado %}completed{% endif %}">
+                    <td>{{ item.nome }}</td>
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <button class="btn btn-sm btn-outline-secondary me-1" 
+                                    onclick="updateQuantity('{{ item.id }}', -1)"
+                                    aria-label="Diminuir quantidade">
+                                -
+                            </button>
+                            <span class="mx-2 quantity-value" 
+                                  data-item-id="{{ item.id }}" 
+                                  aria-live="polite">
+                                {{ item.quantidade }}
+                            </span>
+                            <button class="btn btn-sm btn-outline-secondary ms-1" 
+                                    onclick="updateQuantity('{{ item.id }}', 1)"
+                                    aria-label="Aumentar quantidade">
+                                +
+                            </button>
+                        </div>
+                    </td>
+                    <td>
+                        {% if item.comprado %}
+                            Comprado
+                        {% else %}
+                            Pendente
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                <tr>
+                    <td colspan="3">
+                        <form method="post" action="{% url 'adicionar_item' %}" class="d-flex">
+                            {% csrf_token %}
+                            <input type="text" name="nome" class="form-control me-2" placeholder="Novo item" required>
+                            <button type="submit" class="btn btn-primary">Adicionar</button>
+                        </form>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
